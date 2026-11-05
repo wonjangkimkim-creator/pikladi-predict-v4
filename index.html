@@ -125,6 +125,7 @@ tr.r1,tr.r2,tr.r3{background:color-mix(in srgb,var(--brand) 6%,transparent)}
 .timer small{font-size:12px;color:var(--muted)}
 .timer.soon{border-color:var(--ng)}.timer.soon b{color:var(--ng)}
 .timer.done{border-color:var(--line);background:var(--ng-soft);color:var(--ng)}
+.vote{display:flex;align-items:center;gap:6px;width:100%;font-size:12px;color:var(--muted)}.vote .va b{color:var(--a)}.vote .vb b{color:var(--b)}.vote b{font:400 15px var(--f-num)}.vote small{margin-left:2px}.vt0{font-size:12px;color:var(--muted)}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--brown);color:var(--bg);padding:9px 18px;border-radius:999px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 .toast.show{opacity:1}
 .btn-p{background:var(--brand);color:var(--brand-ink)}
@@ -290,6 +291,7 @@ function scoreFor(keys){
   }).sort((x,y)=>y.rate-x.rate||y.c-x.c||x.name.localeCompare(y.name,'ko'))
     .map((r,i,a)=>{r.rank=(i&&a[i-1].rate===r.rate&&a[i-1].c===r.c)?a[i-1].rank:i+1;return r;});
 }
+function voteHTML(k,g){let ca=0,cb=0;people().forEach(p=>{const v=pickDoc(k,p.id)[g.no];if(v==='A')ca++;if(v==='B')cb++;});const n=ca+cb;if(!n)return '<span class="vt0">아직 예측 없음</span>';const pa=Math.round(ca/n*100),pb=100-pa;const la=g.free?'1조':teamName('A'),lb=g.free?'2조':teamName('B');return `<div class="vote"><span class="va">${esc(la)} <b>${pa}%</b></span><span class="tally"><i style="width:${pa}%;background:var(--a)"></i><i style="width:${pb}%;background:var(--b)"></i></span><span class="vb"><b>${pb}%</b> ${esc(lb)}</span><small>${n}명</small></div>`;}
 function teamWins(k){let a=0,b=0;R(k).games.forEach(g=>{if(g.free)return;const r=resOf(k,g.no);if(r&&r.w==='A')a++;if(r&&r.w==='B')b++;});return{a,b};}
 const pct=x=>(Math.round(x*1000)/10).toFixed(1)+'%';
 const won=n=>(n*5000).toLocaleString('ko-KR')+'원';
@@ -318,7 +320,7 @@ function renderPick(){
     else if(dec)m=v?(v===r.w?'<span class="mark ok">적중</span>':'<span class="mark ng">실패</span>'):'<span class="mark cx">미예측</span>';
     else if(v)m=`<span>내 예측: <b>${esc(teamName(v))}</b></span>`;
     if(dec&&(r.sa!==''&&r.sa!=null))m+=`<span>${esc(r.sa)} : ${esc(r.sb)}</span>`;
-    return `<div class="g" data-no="${g.no}"><div class="no"><b>${g.no}</b><span>${esc(g.type)}</span></div><div class="pair">${sidesHTML(g,cls)}</div><div class="meta">${m}</div></div>`;
+    return `<div class="g" data-no="${g.no}"><div class="no"><b>${g.no}</b><span>${esc(g.type)}</span></div><div class="pair">${sidesHTML(g,cls)}</div><div class="meta">${m}${voteHTML(k,g)}</div></div>`;
   }).join('');
 }
 function renderResult(){
@@ -332,7 +334,7 @@ function renderResult(){
     const cls={A:dec?(r.w==='A'?'win pickA':'lose'):'',B:dec?(r.w==='B'?'win pickB':'lose'):'',dis:!admin};
     let ca=0,cb=0;people().forEach(p=>{const v=pickDoc(k,p.id)[g.no];if(v==='A')ca++;if(v==='B')cb++;});
     const showT=closed(k)||dec, tot=ca+cb||1;
-    const tally=showT?`<span>${esc(teamName('A'))} ${ca}</span><span class="tally"><i style="width:${ca/tot*100}%;background:var(--a)"></i><i style="width:${cb/tot*100}%;background:var(--b)"></i></span><span>${cb} ${esc(teamName('B'))}</span>`:`<span>예측 ${ca+cb}/${people_n}명</span>`;
+    const tally=voteHTML(k,g);
     const ctl=admin?`<span class="score"><input inputmode="numeric" aria-label="${g.no}번 A 점수" data-sc="sa" value="${esc(r.sa??'')}">:<input inputmode="numeric" aria-label="${g.no}번 B 점수" data-sc="sb" value="${esc(r.sb??'')}"></span><button class="mini" data-x="1">${r.w==='X'?'취소 해제':'취소'}</button>`:(r.w==='X'?'<span class="mark cx">경기 취소</span>':'');
     return `<div class="g" data-no="${g.no}"><div class="no"><b>${g.no}</b><span>${esc(g.type)}</span></div><div class="pair">${sidesHTML(g,cls)}</div><div class="meta">${tally}<span style="flex:1"></span>${ctl}</div></div>`;
   }).join('')||`<div class="empty">대진표가 없습니다.</div>`;
