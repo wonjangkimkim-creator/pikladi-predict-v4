@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PIKLADI 승부예측 (대체 대진)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Anton&display=swap">
+<style>
+/* Layout: 오렌지 헤더 밴드 + 탭 + 한 열 카드 목록(넓은 화면 2열). A팀=블루, B팀=오렌지 */
+:root{
+  --bg:#FFF7EE; --surface:#FFFFFF; --surface-2:#FFEEDD; --ink:#3B2414; --muted:#8F6E54; --line:#F1D9C2;
+  --brand:#F26B1D; --brand-ink:#FFFFFF; --brown:#6E3B12;
+  --a:#2F6FD6; --a-soft:#E6EEFB; --b:#E0601A; --b-soft:#FDE7D4;
+  --ok:#2E9E5B; --ok-soft:#E4F5EA; --ng:#D64545; --ng-soft:#FBE5E5; --gold:#C99412;
+  --f-body:"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  --f-num:"Anton","Noto Sans KR",Impact,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#1C140F; --surface:#271C15; --surface-2:#33251B; --ink:#F6E9DD; --muted:#BFA38C; --line:#4A3628; --brand:#F27A33; --brown:#F3C9A4;
+  --a:#7AA6F0; --a-soft:#1E2A42; --b:#F59A5E; --b-soft:#43281A;
+  --ok:#5CC98A; --ok-soft:#173526; --ng:#F07B7B; --ng-soft:#3E1F1F; --gold:#E9BE4A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#1C140F; --surface:#271C15; --surface-2:#33251B; --ink:#F6E9DD; --muted:#BFA38C;
+  --line:#4A3628; --brand:#F27A33; --brown:#F3C9A4;
+  --a:#7AA6F0; --a-soft:#1E2A42; --b:#F59A5E; --b-soft:#43281A;
+  --ok:#5CC98A; --ok-soft:#173526; --ng:#F07B7B; --ng-soft:#3E1F1F; --gold:#E9BE4A; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+button,select,input{font-family:inherit;font-size:14px;color:inherit}
+button{cursor:pointer;border:0;border-radius:10px;padding:8px 14px;font-weight:700;background:var(--surface-2);color:var(--brown)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+select,input{background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:7px 10px}
+.wrap{max-width:980px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.top{background:var(--brand);color:var(--brand-ink)}
+.top .wrap{display:flex;align-items:center;gap:14px;padding-block:14px}
+.logo{width:52px;height:52px;border-radius:14px;background:#fff;padding:3px;object-fit:contain;flex:none}
+.top h1{margin:0;font:900 22px/1.1 var(--f-body);letter-spacing:1px;text-wrap:balance}
+.top p{margin:2px 0 0;font-size:13px;opacity:.92}
+.who{margin-left:auto;display:flex;flex-direction:column;gap:3px;align-items:flex-end;font-size:12px;font-weight:700}
+.who select{background:#fff;color:#3B2414;border:0;font-weight:700;min-width:120px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;padding-block:14px 4px}
+.tab{background:var(--surface);color:var(--muted);border:1.5px solid var(--line);border-radius:999px;padding:8px 16px}
+.tab[aria-selected="true"]{background:var(--brown);color:var(--bg);border-color:var(--brown)}
+.adm{margin-left:auto;background:transparent;color:var(--muted);font-size:13px;padding:8px 6px;text-decoration:underline}
+body{margin:0}
+.seg{display:inline-flex;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{background:transparent;color:var(--muted);padding:6px 14px;border-radius:9px}
+.seg button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.bar .sp{flex:1}
+.note{font-size:13px;color:var(--muted);margin:0}
+.pill{font-size:12px;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--surface-2);color:var(--brown);white-space:nowrap}
+.pill.lock{background:var(--ng-soft);color:var(--ng)}
+.pill.open{background:var(--ok-soft);color:var(--ok)}
+.panel[hidden]{display:none}
+section{padding-bottom:40px}
+
+/* 점수판 */
+.board{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:12px 16px;margin:10px 0}
+.board .t{display:flex;flex-direction:column;gap:2px}
+.board .t.b{text-align:right}
+.board .nm{font-weight:900;font-size:15px}
+.board .t.a .nm{color:var(--a)} .board .t.b .nm{color:var(--b)}
+.board .w{font:400 34px/1 var(--f-num);font-variant-numeric:tabular-nums}
+.board .won{font-size:12px;color:var(--muted);font-weight:700}
+.board .mid{font:400 16px var(--f-num);color:var(--muted)}
+
+/* 경기 카드 */
+.games{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:10px}
+.g{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:10px 12px;display:grid;grid-template-columns:44px 1fr;gap:4px 10px;align-items:center}
+.g .no{grid-row:span 2;display:flex;flex-direction:column;align-items:center;gap:2px}
+.g .no b{font:400 24px/1 var(--f-num);color:var(--brown);font-variant-numeric:tabular-nums}
+.g .no span{font-size:11px;font-weight:700;color:var(--muted)}
+.pair{display:grid;grid-template-columns:1fr 26px 1fr;gap:6px;align-items:stretch}
+.side{border:2px solid var(--line);background:var(--surface);border-radius:12px;padding:8px 6px;font-weight:700;font-size:14px;line-height:1.35;text-align:center;min-height:52px;display:flex;flex-direction:column;justify-content:center;gap:2px;color:var(--ink)}
+.side small{font-size:10px;font-weight:900;letter-spacing:.5px}
+.side.A small{color:var(--a)} .side.B small{color:var(--b)}
+.side.pickA{border-color:var(--a);background:var(--a-soft)}
+.side.pickB{border-color:var(--b);background:var(--b-soft)}
+.side.win{box-shadow:inset 0 0 0 2px var(--ok)}
+.side.lose{opacity:.5}
+.vs{align-self:center;text-align:center;font:400 13px var(--f-num);color:var(--brand)}
+.g .meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);min-height:20px}
+.mark{font-weight:900;border-radius:999px;padding:1px 9px;font-size:12px}
+.mark.ok{background:var(--ok-soft);color:var(--ok)} .mark.ng{background:var(--ng-soft);color:var(--ng)} .mark.cx{background:var(--surface-2);color:var(--muted)}
+.score{display:flex;gap:4px;align-items:center}
+.score input{width:48px;padding:3px 6px;text-align:center}
+.mini{padding:3px 9px;font-size:12px;border-radius:8px}
+.tally{display:flex;height:8px;border-radius:99px;overflow:hidden;background:var(--surface-2);flex:1;min-width:60px}
+.tally i{display:block;height:100%}
+
+/* 순위표 */
+.tw{overflow-x:auto;background:var(--surface);border:1.5px solid var(--line);border-radius:14px}
+table{border-collapse:collapse;width:100%;min-width:520px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:center;font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+th{background:var(--surface-2);color:var(--brown);font-size:12px;letter-spacing:.3px}
+tr:last-child td{border-bottom:0}
+td.nm{text-align:left;font-weight:700}
+.rk{font:400 20px var(--f-num)}
+tr.r1 .rk{color:var(--gold)} tr.r2 .rk{color:#9A9A9A} tr.r3 .rk{color:#B06B2E}
+tr.r1,tr.r2,tr.r3{background:color-mix(in srgb,var(--brand) 6%,transparent)}
+.rate{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.rate .bb{width:80px;height:8px;border-radius:99px;background:var(--surface-2);overflow:hidden}
+.rate .bb i{display:block;height:100%;background:var(--brand)}
+.rate b{min-width:48px;text-align:right}
+.matrix td{padding:6px 6px;font-size:12px}
+.matrix .cA{color:var(--a);font-weight:900} .matrix .cB{color:var(--b);font-weight:900}
+.matrix .hit{background:var(--ok-soft)} .matrix .miss{background:var(--ng-soft)}
+
+.card{background:var(--surface);border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+.card h3{margin:0 0 8px;font-size:16px;color:var(--brown)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:flex;align-items:center;gap:4px;border:1.5px solid var(--line);border-radius:999px;padding:4px 6px 4px 12px;font-weight:700;font-size:14px}
+.chip button{background:transparent;padding:2px 8px;color:var(--muted)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ged{display:grid;grid-template-columns:34px 72px 1fr 1fr;gap:6px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)}
+.ged:last-child{border-bottom:0}
+.ged .ps{display:flex;gap:4px;min-width:0}
+.ged .ps select{flex:1;min-width:0;padding:5px 4px;font-size:13px}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.banner{background:var(--surface-2);border-radius:12px;padding:10px 14px;font-size:13px;margin:10px 0}
+.timer{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:2px solid var(--brand);border-radius:14px;padding:10px 16px;margin:10px 0;font-weight:700;color:var(--brown);text-align:center}
+.timer b{font:400 30px/1 var(--f-num);color:var(--brand);font-variant-numeric:tabular-nums;letter-spacing:1px}
+.timer small{font-size:12px;color:var(--muted)}
+.timer.soon{border-color:var(--ng)}.timer.soon b{color:var(--ng)}
+.timer.done{border-color:var(--line);background:var(--ng-soft);color:var(--ng)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--brown);color:var(--bg);padding:9px 18px;border-radius:999px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.toast.show{opacity:1}
+.btn-p{background:var(--brand);color:var(--brand-ink)}
+.btn-d{background:var(--ng-soft);color:var(--ng)}
+@media (max-width:520px){
+  .top h1{font-size:19px}.logo{width:44px;height:44px}
+  .ged{grid-template-columns:28px 62px 1fr}.ged .ps.b{grid-column:3}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap">
+    <span class="logo" aria-hidden="true" style="display:grid;place-items:center;font:400 28px var(--f-num);color:#F26B1D">P</span>
+    <div>
+      <h1>PIKLADI 승부예측 <span style="font-size:13px;background:#fff;color:#F26B1D;border-radius:999px;padding:2px 10px;vertical-align:middle">대체 대진</span></h1>
+      <p>대체 대진 (성창훈T·본부장님 불참 시) · 11월 + 12월 통합 · TOP3 총상금 5만 원</p>
+    </div>
+    <label class="who">예측자
+      <select id="me"><option value="">이름 선택</option></select>
+    </label>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="pick" aria-selected="true">예측하기</button>
+    <button class="tab" role="tab" data-tab="result" aria-selected="false">경기 결과</button>
+    <button class="tab" role="tab" data-tab="rank" aria-selected="false">순위 · 정산</button>
+    <button class="tab" role="tab" data-tab="setup" aria-selected="false" id="tabSetup" hidden>설정</button>
+    <button id="btnAdmin" class="adm">관리자 로그인</button>
+  </nav>
+  <div id="status" class="banner" hidden></div>
+  <div class="timer" id="timer" role="timer" aria-live="off" hidden></div>
+
+  <!-- 예측하기 -->
+  <section class="panel" id="p-pick">
+    <div class="bar">
+      <div class="seg" data-roundseg></div>
+      <span class="pill" id="pickInfo"></span>
+      <span class="sp"></span>
+      <span class="pill" id="pickLock"></span>
+    </div>
+    <p class="note" id="pickHint">위에서 이름을 고른 뒤, 이길 것 같은 팀을 누르세요. 다시 누르면 취소됩니다. 결과가 기록된 경기는 바꿀 수 없습니다.</p>
+    <div class="games" id="pickGames" style="margin-top:10px"></div>
+  </section>
+
+  <!-- 경기 결과 -->
+  <section class="panel" id="p-result" hidden>
+    <div class="bar">
+      <div class="seg" data-roundseg></div>
+      <span class="pill" id="resDate"></span>
+    </div>
+    <div class="board" id="board"></div>
+    <p class="note" id="resHint"></p>
+    <div class="games" id="resGames" style="margin-top:10px"></div>
+    <div class="card" id="matrixCard" hidden>
+      <h3>예측 현황</h3>
+      <p class="note" style="margin-bottom:8px">초록은 적중, 빨강은 실패입니다. 예측 마감 후에 모두에게 보입니다.</p>
+      <div class="tw"><table class="matrix" id="matrix"></table></div>
+    </div>
+  </section>
+
+  <!-- 순위 -->
+  <section class="panel" id="p-rank" hidden>
+    <div class="bar">
+      <div class="seg" id="rankSeg">
+        <button data-r="nov" aria-pressed="false">11월 중간정산</button>
+        <button data-r="dec" aria-pressed="false">12월</button>
+        <button data-r="all" aria-pressed="true">최종 통합</button>
+      </div>
+      <span class="sp"></span>
+      <button class="btn-p" id="btnCopy">카톡용 텍스트 복사</button>
+    </div>
+    <p class="note" id="rankNote"></p>
+    <div class="tw" style="margin-top:10px"><table id="rankTbl"></table></div>
+    <div class="card" id="teamCard">
+      <h3>팀전 상금 (1승 = 5,000원)</h3>
+      <p class="note" style="margin-bottom:8px">1조·2조로 짠 대체 경기(2·6·8·11·16·19)는 팀전 승수에서 빠집니다. 승부예측에는 포함됩니다.</p>
+      <div class="tw"><table id="teamTbl"></table></div>
+    </div>
+    <textarea id="copyBox" hidden readonly style="width:100%;height:160px;margin-top:8px"></textarea>
+  </section>
+
+  <!-- 설정 -->
+  <section class="panel" id="p-setup" hidden>
+    <div class="card">
+      <h3>예측 마감 · 날짜</h3>
+      <div id="roundCtl"></div>
+    </div>
+    <div class="card">
+      <h3>예측률 계산 기준</h3>
+      <div class="seg" id="basisSeg">
+        <button data-b="all">전체 경기 기준 (미예측 = 실패)</button>
+        <button data-b="picked">예측한 경기만</button>
+      </div>
+      <p class="note" style="margin-top:8px">전체 경기 기준이면 예측률 순위와 적중 수 순위가 같아집니다. 동률이면 적중 수가 많은 사람이 앞섭니다.</p>
+    </div>
+    <div class="card">
+      <h3>예측 참가자</h3>
+      <div class="chips" id="people"></div>
+      <div class="row" style="margin-top:10px">
+        <input id="newName" placeholder="이름" style="width:140px">
+        <button class="btn-p" id="btnAddPerson">추가</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>대진표 편집</h3>
+      <div class="bar" style="margin-top:0">
+        <div class="seg" id="edSeg"></div>
+        <span class="sp"></span>
+        <button id="btnCopyNov">11월 대진을 12월로 복사</button>
+      </div>
+      <div id="editor"></div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const ROUNDS=['nov','dec'];
+const TYPE_DOUBLE={혼복:1,남복:1,여복:1};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const FB_CONFIG={apiKey:"AIzaSyAPCltgcqPS1f6SYvVhMqLclfBOxx_jHVk",authDomain:"pikladi-c4d25.firebaseapp.com",projectId:"pikladi-c4d25",storageBucket:"pikladi-c4d25.firebasestorage.app",messagingSenderId:"509971282771",appId:"1:509971282771:web:381084712810b11e68bfa6"};
+const ADMIN_EMAILS=['wonjangkimkim@gmail.com'];
+const SEED={"v4_config/main": {"predictors": [{"id": "p01", "name": "원장님"}, {"id": "p02", "name": "본부장님"}, {"id": "p03", "name": "부원장님"}, {"id": "p04", "name": "김성준"}, {"id": "p05", "name": "김다혜"}, {"id": "p06", "name": "박유경"}, {"id": "p07", "name": "강지성"}, {"id": "p08", "name": "성창훈"}, {"id": "p09", "name": "양서진"}, {"id": "p10", "name": "정서현"}, {"id": "p11", "name": "성민주"}], "basis": "all", "teamNames": {"A": "A팀", "B": "B팀"}, "teams": {"A": ["원장님", "본부장님", "부원장님", "김성준", "김다혜", "박유경"], "B": ["강지성", "성창훈", "양서진", "정서현", "성민주"]}, "note": "v4 대체 대진 (성창훈T·본부장님 불참 시)"}, "v4_rounds/nov": {"label": "11월", "date": "2026-11-06", "locked": false, "games": [{"no": 1, "type": "혼복", "a": ["김성준", "박유경"], "b": ["양서진", "정서현"]}, {"no": 2, "type": "남단", "a": ["부원장님"], "b": ["김성준"], "free": true}, {"no": 3, "type": "혼복", "a": ["원장님", "김다혜"], "b": ["강지성", "정서현"]}, {"no": 4, "type": "여단", "a": ["박유경"], "b": ["성민주"]}, {"no": 5, "type": "남복", "a": ["부원장님", "김성준"], "b": ["강지성", "양서진"]}, {"no": 6, "type": "혼복", "a": ["원장님", "정서현"], "b": ["김다혜", "강지성"], "free": true}, {"no": 7, "type": "남단", "a": ["부원장님"], "b": ["양서진"]}, {"no": 8, "type": "여복", "a": ["김다혜", "성민주"], "b": ["박유경", "정서현"], "free": true}, {"no": 9, "type": "남복", "a": ["원장님", "부원장님"], "b": ["강지성", "양서진"]}, {"no": 10, "type": "여복", "a": ["김다혜", "박유경"], "b": ["정서현", "성민주"]}, {"no": 11, "type": "남복", "a": ["원장님", "김성준"], "b": ["부원장님", "강지성"], "free": true}, {"no": 12, "type": "여단", "a": ["김다혜"], "b": ["정서현"]}, {"no": 13, "type": "혼복", "a": ["원장님", "박유경"], "b": ["강지성", "성민주"]}, {"no": 14, "type": "여단", "a": ["김다혜"], "b": ["정서현"]}, {"no": 15, "type": "혼복", "a": ["김성준", "박유경"], "b": ["양서진", "성민주"]}, {"no": 16, "type": "남복", "a": ["원장님", "양서진"], "b": ["부원장님", "강지성"], "free": true}, {"no": 17, "type": "혼복", "a": ["김성준", "김다혜"], "b": ["양서진", "정서현"]}, {"no": 18, "type": "여단", "a": ["박유경"], "b": ["성민주"]}, {"no": 19, "type": "남복", "a": ["원장님", "김성준"], "b": ["부원장님", "양서진"], "free": true}, {"no": 20, "type": "혼복", "a": ["원장님", "김다혜"], "b": ["강지성", "성민주"]}], "results": {}, "deadline": "2026-11-06T12:00:00+09:00", "deadlineMs": 1793934000000}, "v4_rounds/dec": {"label": "12월", "date": "", "locked": false, "games": [], "results": {}, "deadline": "", "deadlineMs": null}};
+let db=null, admin=false;
+let cfg=null, rounds={nov:null,dec:null}, picks={};
+let view={tab:'pick',round:'nov',rank:'all',ed:'dec'};
+try{const v=JSON.parse(localStorage.getItem('pk_view')||'{}');Object.assign(view,v);}catch(e){}
+function keepView(){try{localStorage.setItem('pk_view',JSON.stringify(view));}catch(e){}}
+let meId=''; try{meId=localStorage.getItem('pk_me')||'';}catch(e){}
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1800);}
+function status(m){const s=$('#status');s.hidden=!m;s.textContent=m||'';}
+const R=k=>rounds[k]||{label:k==='nov'?'11월':'12월',games:[],results:{},locked:false};
+const label=k=>R(k).label||(k==='nov'?'11월':'12월');
+const people=()=>(cfg&&cfg.predictors)||[];
+const teamName=s=>(cfg&&cfg.teamNames&&cfg.teamNames[s])||(s+'팀');
+const pickDoc=(k,pid)=>picks[k+'-'+pid]||{};
+const resOf=(k,no)=>(R(k).results||{})[no];
+const decided=(k,no)=>{const r=resOf(k,no);return r&&(r.w==='A'||r.w==='B');};
+const closed=k=>{const rd=R(k);return !!rd.locked||(!!rd.deadline&&Date.now()>=Date.parse(rd.deadline));};
+const dlLabel=k=>{const d=R(k).deadline;if(!d)return '';return new Date(Date.parse(d)).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false});};
+const leftText=k=>{const d=R(k).deadline;if(!d)return '';const ms=Date.parse(d)-Date.now();if(ms<=0)return '';const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000);return h?`${h}시간 ${m}분 남음`:`${m}분 남음`;};
+
+/* ---------- 점수 계산 ---------- */
+function scoreFor(keys){
+  const basis=(cfg&&cfg.basis)||'all';
+  return people().map(p=>{
+    const row={id:p.id,name:p.name,by:{}};let c=0,n=0,d=0;
+    keys.forEach(k=>{let rc=0,rn=0,rd=0;const pk=pickDoc(k,p.id);
+      R(k).games.forEach(g=>{if(!decided(k,g.no))return;rd++;const v=pk[g.no];if(v){rn++;if(v===resOf(k,g.no).w)rc++;}});
+      row.by[k]={c:rc,n:rn,d:rd};c+=rc;n+=rn;d+=rd;});
+    row.c=c;row.n=n;row.d=d;const den=basis==='all'?d:n;row.rate=den?c/den:0;row.den=den;return row;
+  }).sort((x,y)=>y.rate-x.rate||y.c-x.c||x.name.localeCompare(y.name,'ko'))
+    .map((r,i,a)=>{r.rank=(i&&a[i-1].rate===r.rate&&a[i-1].c===r.c)?a[i-1].rank:i+1;return r;});
+}
+function teamWins(k){let a=0,b=0;R(k).games.forEach(g=>{if(g.free)return;const r=resOf(k,g.no);if(r&&r.w==='A')a++;if(r&&r.w==='B')b++;});return{a,b};}
+const pct=x=>(Math.round(x*1000)/10).toFixed(1)+'%';
+const won=n=>(n*5000).toLocaleString('ko-KR')+'원';
+
+/* ---------- 렌더 ---------- */
+function renderSeg(){
+  $$('[data-roundseg]').forEach(el=>{el.innerHTML=ROUNDS.map(k=>`<button data-k="${k}" aria-pressed="${view.round===k}">${esc(label(k))}</button>`).join('');});
+}
+function sidesHTML(g,cls){
+  const t=s=>`<small>${g.free?(s==='A'?'1조':'2조'):esc(teamName(s))}</small>${(s==='A'?g.a:g.b).map(esc).join(' · ')}`;
+  return `<button class="side A ${cls.A||''}" data-s="A" ${cls.dis?'disabled':''}>${t('A')}</button><span class="vs">VS</span><button class="side B ${cls.B||''}" data-s="B" ${cls.dis?'disabled':''}>${t('B')}</button>`;
+}
+function renderPick(){
+  const k=view.round, rd=R(k), me=people().find(p=>p.id===meId);
+  const pk=me?pickDoc(k,me.id):{};
+  const total=rd.games.length, done=rd.games.filter(g=>pk[g.no]).length;
+  $('#pickInfo').textContent=me?`${me.name} · ${done}/${total} 예측`:'이름을 먼저 고르세요';
+  const cl=closed(k);$('#pickLock').className='pill '+(cl?'lock':'open');$('#pickLock').textContent=cl?'예측 마감':(rd.deadline?`${dlLabel(k)} 마감 · ${leftText(k)}`:'예측 가능');
+  $('#pickHint').textContent=cl?'예측이 마감되었습니다. 경기 결과가 기록되면 적중 여부가 표시됩니다.':`이름을 고른 뒤 이길 것 같은 팀을 누르세요. 다시 누르면 취소됩니다.${rd.deadline?' '+dlLabel(k)+'까지 자유롭게 수정할 수 있고, 그 뒤에는 입력과 수정이 막힙니다.':''}`;
+  if(!total){$('#pickGames').innerHTML=`<div class="empty">${esc(label(k))} 대진표가 아직 없습니다.${admin?' 설정 탭에서 대진을 입력하세요.':''}</div>`;return;}
+  $('#pickGames').innerHTML=rd.games.map(g=>{
+    const v=pk[g.no], r=resOf(k,g.no), dec=decided(k,g.no), lock=closed(k)||!!r||!me;
+    const cls={A:(v==='A'?'pickA':'')+(dec?(r.w==='A'?' win':' lose'):''),B:(v==='B'?'pickB':'')+(dec?(r.w==='B'?' win':' lose'):''),dis:lock};
+    let m='';
+    if(r&&r.w==='X')m='<span class="mark cx">경기 취소</span>';
+    else if(dec)m=v?(v===r.w?'<span class="mark ok">적중</span>':'<span class="mark ng">실패</span>'):'<span class="mark cx">미예측</span>';
+    else if(v)m=`<span>내 예측: <b>${esc(teamName(v))}</b></span>`;
+    if(dec&&(r.sa!==''&&r.sa!=null))m+=`<span>${esc(r.sa)} : ${esc(r.sb)}</span>`;
+    return `<div class="g" data-no="${g.no}"><div class="no"><b>${g.no}</b><span>${esc(g.type)}</span></div><div class="pair">${sidesHTML(g,cls)}</div><div class="meta">${m}</div></div>`;
+  }).join('');
+}
+function renderResult(){
+  const k=view.round, rd=R(k), w=teamWins(k), left=rd.games.filter(g=>!resOf(k,g.no)).length;
+  $('#resDate').textContent=(rd.date?rd.date+' · ':'')+`남은 경기 ${left}`;
+  $('#board').innerHTML=`<div class="t a"><span class="nm">${esc(teamName('A'))}</span><span class="w">${w.a}</span><span class="won">${won(w.a)}</span></div><span class="mid">${esc(label(k))}</span><div class="t b"><span class="nm">${esc(teamName('B'))}</span><span class="w">${w.b}</span><span class="won">${won(w.b)}</span></div>`;
+  $('#resHint').textContent=admin?'이긴 팀을 누르면 기록됩니다. 같은 팀을 다시 누르면 지워집니다. 점수는 선택 사항입니다.':'결과는 원장님이 기록합니다.';
+  const people_n=people().length;
+  $('#resGames').innerHTML=rd.games.map(g=>{
+    const r=resOf(k,g.no)||{}, dec=decided(k,g.no);
+    const cls={A:dec?(r.w==='A'?'win pickA':'lose'):'',B:dec?(r.w==='B'?'win pickB':'lose'):'',dis:!admin};
+    let ca=0,cb=0;people().forEach(p=>{const v=pickDoc(k,p.id)[g.no];if(v==='A')ca++;if(v==='B')cb++;});
+    const showT=closed(k)||dec, tot=ca+cb||1;
+    const tally=showT?`<span>${esc(teamName('A'))} ${ca}</span><span class="tally"><i style="width:${ca/tot*100}%;background:var(--a)"></i><i style="width:${cb/tot*100}%;background:var(--b)"></i></span><span>${cb} ${esc(teamName('B'))}</span>`:`<span>예측 ${ca+cb}/${people_n}명</span>`;
+    const ctl=admin?`<span class="score"><input inputmode="numeric" aria-label="${g.no}번 A 점수" data-sc="sa" value="${esc(r.sa??'')}">:<input inputmode="numeric" aria-label="${g.no}번 B 점수" data-sc="sb" value="${esc(r.sb??'')}"></span><button class="mini" data-x="1">${r.w==='X'?'취소 해제':'취소'}</button>`:(r.w==='X'?'<span class="mark cx">경기 취소</span>':'');
+    return `<div class="g" data-no="${g.no}"><div class="no"><b>${g.no}</b><span>${esc(g.type)}</span></div><div class="pair">${sidesHTML(g,cls)}</div><div class="meta">${tally}<span style="flex:1"></span>${ctl}</div></div>`;
+  }).join('')||`<div class="empty">대진표가 없습니다.</div>`;
+  // 매트릭스
+  const show=closed(k)||admin;
+  $('#matrixCard').hidden=!show||!rd.games.length;
+  if(show){
+    const head=`<tr><th>이름</th>${rd.games.map(g=>`<th>${g.no}</th>`).join('')}</tr>`;
+    const rows=people().map(p=>{const pk=pickDoc(k,p.id);return `<tr><td class="nm">${esc(p.name)}</td>${rd.games.map(g=>{const v=pk[g.no];if(!v)return '<td>·</td>';const r=resOf(k,g.no);const c=decided(k,g.no)?(v===r.w?'hit':'miss'):'';return `<td class="c${v} ${c}">${v}</td>`;}).join('')}</tr>`;}).join('');
+    $('#matrix').innerHTML=head+rows;
+  }
+}
+function renderRank(){
+  const keys=view.rank==='all'?ROUNDS:[view.rank];
+  $$('#rankSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.r===view.rank));
+  const rows=scoreFor(keys), basis=(cfg&&cfg.basis)||'all';
+  const decN=keys.reduce((s,k)=>s+R(k).games.filter(g=>decided(k,g.no)).length,0);
+  const totN=keys.reduce((s,k)=>s+R(k).games.length,0);
+  const ttl=view.rank==='nov'?'11월 중간정산':view.rank==='dec'?'12월 결과':'최종 통합 순위 (11월 + 12월)';
+  $('#rankNote').textContent=`${ttl} · 결과 기록 ${decN}/${totN}경기 · ${basis==='all'?'예측률 = 적중 ÷ 결과가 나온 전체 경기':'예측률 = 적중 ÷ 내가 예측한 경기'} · 동률이면 적중 수 순`;
+  const byCols=view.rank==='all';
+  const head=`<tr><th>순위</th><th style="text-align:left">이름</th>${byCols?'<th>11월</th><th>12월</th>':''}<th>적중</th><th>예측</th><th style="text-align:right">예측률</th></tr>`;
+  $('#rankTbl').innerHTML=head+(rows.map(r=>`<tr class="r${r.rank}"><td class="rk">${r.rank}</td><td class="nm">${esc(r.name)}</td>${byCols?ROUNDS.map(k=>`<td>${r.by[k].c}/${r.by[k].d}</td>`).join(''):''}<td>${r.c}</td><td>${r.n}/${r.d}</td><td><div class="rate"><span class="bb"><i style="width:${r.rate*100}%"></i></span><b>${r.den?pct(r.rate):'-'}</b></div></td></tr>`).join('')||`<tr><td colspan="7" class="empty">참가자가 없습니다.</td></tr>`);
+  const tk=keys, sums={a:0,b:0};
+  const trows=tk.map(k=>{const w=teamWins(k);sums.a+=w.a;sums.b+=w.b;return `<tr><td>${esc(label(k))}</td><td>${w.a}승 · ${won(w.a)}</td><td>${w.b}승 · ${won(w.b)}</td></tr>`;}).join('');
+  $('#teamTbl').innerHTML=`<tr><th>라운드</th><th>${esc(teamName('A'))}</th><th>${esc(teamName('B'))}</th></tr>`+trows+(tk.length>1?`<tr><td><b>합계</b></td><td><b>${sums.a}승 · ${won(sums.a)}</b></td><td><b>${sums.b}승 · ${won(sums.b)}</b></td></tr>`:'');
+}
+function copyText(){
+  const keys=view.rank==='all'?ROUNDS:[view.rank];const rows=scoreFor(keys);
+  const ttl=view.rank==='nov'?'11월 중간정산':view.rank==='dec'?'12월 결과':'최종 순위 (11월+12월)';
+  const lines=[`🏓 PIKLADI 승부예측 ${ttl}`,''];
+  rows.forEach(r=>{const md=r.rank===1?'🥇':r.rank===2?'🥈':r.rank===3?'🥉':`${r.rank}위`;lines.push(`${md} ${r.name}  ${r.c}개 적중 · ${r.den?pct(r.rate):'-'}`);});
+  lines.push('');const s={a:0,b:0};keys.forEach(k=>{const w=teamWins(k);s.a+=w.a;s.b+=w.b;});
+  lines.push(`팀전: ${teamName('A')} ${s.a}승(${won(s.a)}) / ${teamName('B')} ${s.b}승(${won(s.b)})`);
+  return lines.join('\n');
+}
+function renderSetup(){
+  if(!admin)return;
+  $('#roundCtl').innerHTML=ROUNDS.map(k=>{const rd=R(k);return `<div class="row" style="margin-bottom:8px" data-k="${k}"><b style="min-width:44px">${esc(label(k))}</b><input type="date" id="date-${k}" value="${esc(rd.date||'')}"><label class="row" style="gap:4px;font-size:13px;font-weight:700">마감 <input type="datetime-local" id="dl-${k}" value="${esc((rd.deadline||'').slice(0,16))}"></label><button class="${rd.locked?'btn-d':'btn-p'}" data-lock="1">${rd.locked?'마감 해제':'예측 마감'}</button><span class="pill ${closed(k)?'lock':'open'}">${closed(k)?'마감됨':'예측 받는 중'}</span></div>`;}).join('');
+  $$('#basisSeg button').forEach(b=>b.setAttribute('aria-pressed',((cfg&&cfg.basis)||'all')===b.dataset.b));
+  $('#people').innerHTML=people().map(p=>`<span class="chip">${esc(p.name)}<button data-del="${esc(p.id)}" aria-label="${esc(p.name)} 삭제">✕</button></span>`).join('');
+  $('#edSeg').innerHTML=ROUNDS.map(k=>`<button data-k="${k}" aria-pressed="${view.ed===k}">${esc(label(k))}</button>`).join('');
+  const tm=(cfg&&cfg.teams)||{A:[],B:[]}, rd=R(view.ed);
+  const ALL=[...new Set([...tm.A,...tm.B])];const sel=(list,v,i)=>`<select data-i="${i}">${list.map(n=>`<option ${n===v?'selected':''}>${esc(n)}</option>`).join('')}</select>`;
+  $('#editor').innerHTML=rd.games.map((g,gi)=>{const n=TYPE_DOUBLE[g.type]?2:1;
+    return `<div class="ged" data-gi="${gi}"><b>${g.no}</b><select data-type="1">${['혼복','남복','여복','남단','여단'].map(t=>`<option ${t===g.type?'selected':''}>${t}</option>`).join('')}</select><div class="ps a" data-side="a">${[...Array(n)].map((_,i)=>sel(g.free?ALL:tm.A,g.a[i],i)).join('')}</div><div class="ps b" data-side="b">${[...Array(n)].map((_,i)=>sel(g.free?ALL:tm.B,g.b[i],i)).join('')}</div></div>`;}).join('')||'<p class="note">대진이 없습니다. 11월 대진을 복사해 시작하세요.</p>';
+}
+function render(){
+  $$('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===view.tab));
+  ['pick','result','rank','setup'].forEach(t=>$('#p-'+t).hidden=view.tab!==t);
+  $('#tabSetup').hidden=!admin;
+  const sel=$('#me'),cur=meId;
+  sel.innerHTML='<option value="">이름 선택</option>'+people().map(p=>`<option value="${esc(p.id)}" ${p.id===cur?'selected':''}>${esc(p.name)}</option>`).join('');
+  renderSeg();
+  if(view.tab==='pick')renderPick();
+  if(view.tab==='result')renderResult();
+  if(view.tab==='rank')renderRank();
+  if(view.tab==='setup')renderSetup();
+}
+
+/* ---------- 쓰기 ---------- */
+async function safe(fn,ok){if(!db){toast('저장소에 연결되지 않았습니다');return;}try{await fn();if(ok)toast(ok);}catch(e){toast(e&&e.code==='permission-denied'?'예측이 마감되었거나 권한이 없습니다':'저장하지 못했습니다. 인터넷 연결을 확인하세요');}}
+const clone=o=>JSON.parse(JSON.stringify(o||{}));
+function saveRound(k,rd){rd.deadlineMs=rd.deadline?Date.parse(rd.deadline):null;rounds[k]=rd;render();return safe(()=>db.doc('v4_rounds/'+k).set(rd));}
+function savePick(k,pid,map){picks[k+'-'+pid]=map;render();return safe(()=>db.doc('v4_picks/'+k+'-'+pid).set({round:k,pid,picks:map,at:Date.now()}));}
+function saveCfg(c){cfg=c;render();return safe(()=>db.doc('v4_config/main').set(c));}
+
+document.addEventListener('click',e=>{
+  const tab=e.target.closest('.tab');if(tab){view.tab=tab.dataset.tab;keepView();render();return;}
+  const seg=e.target.closest('[data-roundseg] button');if(seg){view.round=seg.dataset.k;keepView();render();return;}
+  const rs=e.target.closest('#rankSeg button');if(rs){view.rank=rs.dataset.r;keepView();$('#copyBox').hidden=true;render();return;}
+  const side=e.target.closest('.side');
+  if(side&&!side.disabled){
+    const no=+side.closest('.g').dataset.no, s=side.dataset.s, k=view.round;
+    if(view.tab==='pick'){
+      if(!meId){toast('이름을 먼저 고르세요');return;}
+      if(closed(k)){toast('예측이 마감되었습니다');render();return;}
+      const m=clone(pickDoc(k,meId)); if(m[no]===s)delete m[no]; else m[no]=s; savePick(k,meId,m);
+    } else if(view.tab==='result'&&admin){
+      const rd=clone(R(k));rd.results=rd.results||{};const cur=rd.results[no]||{};
+      if(cur.w===s)delete rd.results[no]; else rd.results[no]={w:s,sa:cur.sa??'',sb:cur.sb??''};
+      saveRound(k,rd);
+    }
+    return;
+  }
+  const cx=e.target.closest('[data-x]');if(cx&&admin){const no=+cx.closest('.g').dataset.no,k=view.round;const rd=clone(R(k));rd.results=rd.results||{};if((rd.results[no]||{}).w==='X')delete rd.results[no];else rd.results[no]={w:'X'};saveRound(k,rd);return;}
+  const lk=e.target.closest('[data-lock]');if(lk){const k=lk.closest('[data-k]').dataset.k;const rd=clone(R(k));rd.locked=!rd.locked;saveRound(k,rd).then(()=>toast(rd.locked?`${label(k)} 예측 마감`:`${label(k)} 마감 해제`));return;}
+  const bs=e.target.closest('#basisSeg button');if(bs){const c=clone(cfg);c.basis=bs.dataset.b;saveCfg(c);return;}
+  const dl=e.target.closest('[data-del]');if(dl){
+    if(dl.dataset.confirm!=='1'){dl.dataset.confirm='1';dl.textContent='삭제?';setTimeout(()=>{if(dl.isConnected){dl.dataset.confirm='';dl.textContent='✕';}},2500);return;}
+    const c=clone(cfg);c.predictors=c.predictors.filter(p=>p.id!==dl.dataset.del);saveCfg(c);return;}
+  const es=e.target.closest('#edSeg button');if(es){view.ed=es.dataset.k;keepView();render();return;}
+});
+$('#me').addEventListener('change',e=>{meId=e.target.value;try{localStorage.setItem('pk_me',meId);}catch(_){}render();});
+$('#btnAddPerson').addEventListener('click',()=>{const n=$('#newName').value.trim();if(!n)return;const c=clone(cfg);c.predictors=c.predictors||[];if(c.predictors.some(p=>p.name===n)){toast('이미 있는 이름입니다');return;}
+  const id='p'+Date.now().toString(36);c.predictors.push({id,name:n});$('#newName').value='';saveCfg(c);});
+$('#btnCopyNov').addEventListener('click',e=>{const b=e.currentTarget;if(b.dataset.c!=='1'){b.dataset.c='1';b.textContent='12월 대진을 덮어씁니다. 한 번 더 누르세요';setTimeout(()=>{b.dataset.c='';b.textContent='11월 대진을 12월로 복사';},3000);return;}
+  b.dataset.c='';b.textContent='11월 대진을 12월로 복사';const rd=clone(R('dec'));rd.games=clone(R('nov').games);rd.label=rd.label||'12월';saveRound('dec',rd).then(()=>toast('복사했습니다'));});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.matches('#roundCtl input[type=datetime-local]')){const k=t.closest('[data-k]').dataset.k;const rd=clone(R(k));rd.deadline=t.value?t.value+':00+09:00':'';saveRound(k,rd).then(()=>toast(t.value?`${label(k)} 마감 시각 저장`:'마감 시각 삭제'));return;}
+  if(t.matches('#roundCtl input[type=date]')){const k=t.closest('[data-k]').dataset.k;const rd=clone(R(k));rd.date=t.value;saveRound(k,rd);return;}
+  if(t.matches('[data-sc]')&&admin){const no=+t.closest('.g').dataset.no,k=view.round;const rd=clone(R(k));rd.results=rd.results||{};const r=rd.results[no];
+    if(!r||r.w==='X'){toast('먼저 이긴 팀을 누르세요');t.value='';return;}r[t.dataset.sc]=t.value.trim();saveRound(k,rd);return;}
+  const ge=t.closest('.ged');if(ge&&admin){const gi=+ge.dataset.gi,k=view.ed,rd=clone(R(k)),g=rd.games[gi],tm=cfg.teams;
+    if(t.dataset.type){g.type=t.value;const n=TYPE_DOUBLE[g.type]?2:1;const fit=(arr,list)=>{arr=arr.slice(0,n);while(arr.length<n)arr.push(list.find(x=>!arr.includes(x))||list[0]);return arr;};g.a=fit(g.a,tm.A);g.b=fit(g.b,tm.B);}
+    else{const sd=t.closest('.ps').dataset.side;g[sd][+t.dataset.i]=t.value;}
+    saveRound(k,rd);}
+});
+$('#btnCopy').addEventListener('click',async()=>{const txt=copyText();try{await navigator.clipboard.writeText(txt);toast('복사했습니다. 카톡에 붙여 넣으세요');}catch(e){const b=$('#copyBox');b.hidden=false;b.value=txt;b.select();toast('텍스트를 길게 눌러 복사하세요');}});
+
+/* ---------- 시작 ---------- */
+render();
+setInterval(()=>{if(view.tab==='pick')render();},30000);
+function tick(){const el=$('#timer');if(!el)return;const k=view.round,rd=R(k),d=rd.deadline;
+  if(!d||view.tab==='setup'){el.hidden=true;return;}el.hidden=false;const ms=Date.parse(d)-Date.now();
+  if(ms<=0||rd.locked){el.className='timer done';el.innerHTML=`🔒 ${esc(label(k))} 예측이 마감되었습니다`;if(el._closed!==k){el._closed=k;render();}return;}
+  el._closed='';const s=Math.floor(ms/1000),dd=Math.floor(s/86400),hh=Math.floor(s%86400/3600),mm=Math.floor(s%3600/60),ss=s%60,p=n=>String(n).padStart(2,'0');
+  el.className='timer'+(ms<3600000?' soon':'');
+  el.innerHTML=`<span>⏰ ${esc(label(k))} 예측 마감까지</span><b>${dd?dd+'일 ':''}${p(hh)}:${p(mm)}:${p(ss)}</b><small>${esc(dlLabel(k))} 마감</small>`;}
+setInterval(tick,1000);tick();
+(()=>{
+  if(!window.firebase||!FB_CONFIG||!FB_CONFIG.apiKey){status('저장소(Firebase)에 연결할 수 없습니다. 잠시 후 새로 고쳐 주세요.');return;}
+  firebase.initializeApp(FB_CONFIG); db=firebase.firestore(); const auth=firebase.auth();
+  auth.onAuthStateChanged(u=>{admin=!!(u&&ADMIN_EMAILS.includes((u.email||'').toLowerCase()));
+    $('#btnAdmin').textContent=u?(admin?'관리자 로그아웃':'로그아웃 (관리자 계정 아님)'):'관리자 로그인';
+    if(!admin&&view.tab==='setup')view.tab='pick'; showSeed(); render();});
+  $('#btnAdmin').addEventListener('click',()=>{if(auth.currentUser)auth.signOut();else auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(()=>toast('로그인하지 못했습니다'));});
+  function showSeed(){if(cfg){status('');return;}const s=$('#status');s.hidden=false;
+    s.innerHTML=admin?'아직 대진과 참가자가 없습니다. <button class="btn-p mini" id="btnSeed">11월 대진·참가자 넣기</button>':'아직 대진과 참가자가 없습니다. 원장님이 준비하면 여기에 나타납니다.';}
+  document.addEventListener('click',e=>{if(e.target.id!=='btnSeed')return;const b=db.batch();Object.entries(SEED).forEach(([p,d])=>b.set(db.doc(p),d));
+    b.commit().then(()=>toast('11월 대진을 넣었습니다')).catch(()=>toast('넣지 못했습니다'));});
+  const onErr=()=>status('저장소 연결이 끊겼습니다. 페이지를 새로 고쳐 주세요.');
+  db.doc('v4_config/main').onSnapshot(s=>{cfg=s.exists?s.data():null;showSeed();render();},onErr);
+  ROUNDS.forEach(k=>db.doc('v4_rounds/'+k).onSnapshot(s=>{rounds[k]=s.exists?s.data():null;render();},onErr));
+  db.collection('v4_picks').onSnapshot(q=>{const m={};q.docs.forEach(d=>{const x=d.data();if(x&&x.round&&x.pid)m[x.round+'-'+x.pid]=x.picks||{};});picks=m;render();},onErr);
+})();
+</script>
+
+</body>
+</html>
